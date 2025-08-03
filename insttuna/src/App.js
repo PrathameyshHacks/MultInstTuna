@@ -11,12 +11,9 @@ const stringInstruments = {
 };
 
 const noteFrequencyMap = {
-	// Guitar EADGBE
 	E2: 82.41, A2: 110.00, D3: 146.83, G3: 196.00, B3: 246.94, E4: 329.63,
-	// Violin GDAE
 	G3: 196.00, D4: 293.66, A4: 440.00, E5: 659.25,
-	// Ukulele GCEA
-	G4: 392.00, C4: 261.63, A4: 440.00
+	G4: 392.00, C4: 261.63, A4: 440.00,
 };
 
 function App() {
@@ -33,15 +30,13 @@ function App() {
 		document.body.className = darkMode ? 'dark-mode' : '';
 	}, [darkMode]);
 
-	const toggleDarkMode = () => {
-		setDarkMode(!darkMode);
-	};
+	const toggleDarkMode = () => setDarkMode(!darkMode);
 
 	const isStringInstrument = (inst) =>
 		Object.keys(stringInstruments).includes(inst);
 
 	const getNoteFromPitchName = (noteName) => {
-		const freqNote = getNoteFromPitch(440); // dummy base
+		const freqNote = getNoteFromPitch(440); // dummy
 		freqNote.name = noteName;
 		freqNote.frequency = noteFrequencyMap[noteName] || 440;
 		return freqNote;
@@ -49,6 +44,8 @@ function App() {
 
 	useEffect(() => {
 		if (!analyser || !dataArray || !isListening) return;
+
+		let lastNote = null;
 
 		const detect = () => {
 			analyser.getFloatTimeDomainData(dataArray);
@@ -61,23 +58,29 @@ function App() {
 				if (isStringInstrument(instrument) && selectedString) {
 					const targetNote = getNoteFromPitchName(selectedString);
 					centsOff = getCentsDifference(pitch, targetNote.frequency);
-					setNote(targetNote.name);
+					if (!note || note !== targetNote.name) {
+						setNote(targetNote.name);
+						lastNote = targetNote.name;
+					}
 				} else {
 					centsOff = getCentsDifference(pitch, nearestNote.frequency);
-					setNote(nearestNote.name);
+					if (!note || note !== nearestNote.name) {
+						setNote(nearestNote.name);
+						lastNote = nearestNote.name;
+					}
 				}
 
 				setCents(centsOff.toFixed(1));
 			} else {
-				setNote(null);
 				setCents('0.0');
+				// Preserve note so it doesn't disappear at 0 cents or silence
 			}
 
 			requestAnimationFrame(detect);
 		};
 
 		detect();
-	}, [analyser, dataArray, instrument, selectedString, isListening]);
+	}, [analyser, dataArray, instrument, selectedString, isListening, note]);
 
 	const toggleMic = async () => {
 		if (isListening) {
@@ -88,12 +91,9 @@ function App() {
 		} else {
 			try {
 				await startMic();
-
-				// Resume AudioContext explicitly for iOS/Safari
 				if (analyser?.context?.state === 'suspended') {
 					await analyser.context.resume();
 				}
-
 				setIsListening(true);
 			} catch (err) {
 				console.error('Mic start error:', err);
@@ -139,9 +139,7 @@ function App() {
 					onChange={(e) => setSelectedString(e.target.value)}
 					value={selectedString || ''}
 				>
-					<option value="" disabled>
-						Select string
-					</option>
+					<option value="" disabled>Select string</option>
 					{stringInstruments[instrument].map((str) => (
 						<option key={str} value={str}>
 							{str}
