@@ -154,7 +154,7 @@ function App() {
 			)}
 			<h3>🎤 Microphone: {isListening ? 'Active' : 'Stopped'}</h3>
 
-			<div className="note-display">{note}</div>
+			<div className="note-display">{note || 'NOTE'}</div>
 
 			<div className="tuner">
 				<div className="needle-wrapper">
