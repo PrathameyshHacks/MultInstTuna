@@ -1,71 +1,80 @@
-export function detectPitch(buffer, sampleRate = 44100) {
-	const SIZE = buffer.length;
+import React, { useEffect, useState } from 'react';
+import { getNoteFromPitch, getCentsDifference } from '../utils/noteUtils';
+import useMicrophone from '../hooks/useMicrophone';
 
-	// Compute RMS and check for silence
-	let rms = 0;
-	for (let i = 0; i < SIZE; i++) {
-		const val = buffer[i];
-		rms += val * val;
-	}
-	rms = Math.sqrt(rms / SIZE);
-	if (rms < 0.01) return null; // silence or low input
+function PitchDetector({ onPitchDetected }) {
+	const { analyser, dataArray, startMic } = useMicrophone();
+	const [pitch, setPitch] = useState(null);
 
-	// Trim buffer to ignore quiet portions
-	let r1 = 0, r2 = SIZE - 1, threshold = 0.2;
-	for (let i = 0; i < SIZE / 2; i++) {
-		if (Math.abs(buffer[i]) < threshold) {
-			r1 = i;
-			break;
-		}
-	}
-	for (let i = 1; i < SIZE / 2; i++) {
-		if (Math.abs(buffer[SIZE - i]) < threshold) {
-			r2 = SIZE - i;
-			break;
-		}
-	}
-	buffer = buffer.slice(r1, r2);
-	const newSize = buffer.length;
+	useEffect(() => {
+		startMic();
+	}, []);
 
-	// Autocorrelation
-	const c = new Array(newSize).fill(0);
-	for (let i = 0; i < newSize; i++) {
-		for (let j = 0; j < newSize - i; j++) {
-			c[i] += buffer[j] * buffer[j + i];
-		}
-	}
+	useEffect(() => {
+		if (!analyser || !dataArray) return;
 
-	// Find the first reasonable dip (skipping zero-lag peak)
-	let d = 0;
-	while (d < newSize - 1 && c[d] > c[d + 1]) d++;
+		const detectPitch = () => {
+			analyser.getFloatTimeDomainData(dataArray);
+			let maxVal = 0;
+			let maxIndex = -1;
 
-	// Find peak after that
-	let maxval = -1;
-	let maxpos = -1;
-	for (let i = d; i < newSize; i++) {
-		if (c[i] > maxval) {
-			maxval = c[i];
-			maxpos = i;
-		}
-	}
+			for (let i = 0; i < dataArray.length; i++) {
+				if (Math.abs(dataArray[i]) > maxVal) {
+					maxVal = Math.abs(dataArray[i]);
+					maxIndex = i;
+				}
+			}
 
-	if (maxpos === -1) return null;
+			if (maxVal < 0.01) {
+				requestAnimationFrame(detectPitch);
+				return;
+			}
 
-	// Optional: Parabolic interpolation for better precision
-	const x1 = c[maxpos - 1] || 0;
-	const x2 = c[maxpos];
-	const x3 = c[maxpos + 1] || 0;
+			let bestOffset = 0;
+			let bestCorrelation = 0;
+			let rms = 0;
 
-	const a = (x1 + x3 - 2 * x2) / 2;
-	const b = (x3 - x1) / 2;
+			for (let i = 0; i < dataArray.length; i++) {
+				rms += dataArray[i] * dataArray[i];
+			}
+			rms = Math.sqrt(rms / dataArray.length);
+			if (rms < 0.01) {
+				requestAnimationFrame(detectPitch);
+				return;
+			}
 
-	let T0 = maxpos;
-	if (a !== 0) {
-		T0 = maxpos - b / (2 * a); // refine estimate
-	}
+			const sampleRate = 44100;
+			let foundPitch = null;
 
-	const pitch = sampleRate / T0;
-	if (pitch < 50 || pitch > 2000) return null; // reject out-of-range values
+			for (let offset = 8; offset < 1000; offset++) {
+				let correlation = 0;
+				for (let i = 0; i < dataArray.length - offset; i++) {
+					correlation += dataArray[i] * dataArray[i + offset];
+				}
+				if (correlation > bestCorrelation) {
+					bestCorrelation = correlation;
+					bestOffset = offset;
+				}
+			}
 
-	return pitch;
+			if (bestCorrelation > 0.9) {
+				foundPitch = sampleRate / bestOffset;
+			}
+
+			if (foundPitch) {
+				setPitch(foundPitch);
+				const { name, frequency } = getNoteFromPitch(foundPitch);
+				const cents = getCentsDifference(foundPitch, frequency);
+				onPitchDetected({ pitch: foundPitch, name, cents });
+			}
+
+			requestAnimationFrame(detectPitch);
+		};
+
+		detectPitch();
+	}, [analyser, dataArray]);
+
+	return null;
 }
+
+export default PitchDetector;
