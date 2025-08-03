@@ -9,10 +9,10 @@ export function detectPitch(buffer, sampleRate = 44100) {
 		rms += val * val;
 	}
 	rms = Math.sqrt(rms / SIZE);
-	if (rms < 0.01) return null; // silence or low input
+	if (rms < 0.001) return null; // silence or low input // changed 0.01 -> 0.001
 
 	// Trim buffer to ignore quiet portions
-	let r1 = 0, r2 = SIZE - 1, threshold = 0.2;
+	let r1 = 0, r2 = SIZE - 1, threshold = 0.01;	// thre changed 0.2 -> 0.01
 	for (let i = 0; i < SIZE / 2; i++) {
 		if (Math.abs(buffer[i]) < threshold) {
 			r1 = i;
@@ -70,3 +70,4 @@ export function detectPitch(buffer, sampleRate = 44100) {
 
 	return pitch;
 }
+
