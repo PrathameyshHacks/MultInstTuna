@@ -9,7 +9,6 @@ function useMicrophone() {
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-			// Create audio context and resume it if suspended (important for mobile)
 			const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 			if (audioContext.state === 'suspended') {
 				await audioContext.resume();
@@ -29,7 +28,6 @@ function useMicrophone() {
 			setDataArray(dataArrayRef);
 
 			console.log('✅ Microphone started and audio context is active');
-
 			return true;
 		} catch (error) {
 			console.error('❌ Microphone access denied or error:', error);
