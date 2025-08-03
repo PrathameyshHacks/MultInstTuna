@@ -12,8 +12,7 @@ const stringInstruments = {
 
 const noteFrequencyMap = {
 	E2: 82.41, A2: 110.00, D3: 146.83, G3: 196.00, B3: 246.94, E4: 329.63,
-	D4: 293.66, A4: 440.00, E5: 659.25,
-	G4: 392.00, C4: 261.63,
+	G4: 392.00, C4: 261.63, A4: 440.00, D4: 293.66, E5: 659.25,
 };
 
 function App() {
@@ -36,51 +35,70 @@ function App() {
 		Object.keys(stringInstruments).includes(inst);
 
 	const getNoteFromPitchName = (noteName) => {
-		return {
-			name: noteName,
-			frequency: noteFrequencyMap[noteName] || 440,
-		};
+		const freqNote = getNoteFromPitch(440); // dummy
+		freqNote.name = noteName;
+		freqNote.frequency = noteFrequencyMap[noteName] || 440;
+		return freqNote;
+	};
+
+	const getRMS = (buffer) => {
+		let sum = 0;
+		for (let i = 0; i < buffer.length; i++) {
+			sum += buffer[i] * buffer[i];
+		}
+		return Math.sqrt(sum / buffer.length);
 	};
 
 	useEffect(() => {
 		if (!analyser || !dataArray || !isListening) return;
 
+		let lastNote = null;
+
 		const detect = () => {
 			analyser.getFloatTimeDomainData(dataArray);
-			const pitch = detectPitch(dataArray, analyser.context.sampleRate);
+			const volume = getRMS(dataArray);
 
-			if (pitch !== null && pitch > 50 && pitch < 1500) {
-				const nearestNote = getNoteFromPitch(pitch);
-				let displayNote = nearestNote.name;
-				let displayCents = 0;
-
-				if (isStringInstrument(instrument) && selectedString) {
-					const target = getNoteFromPitchName(selectedString);
-					displayNote = target.name;
-					displayCents = getCentsDifference(pitch, target.frequency);
-				} else {
-					displayCents = getCentsDifference(pitch, nearestNote.frequency);
-				}
-
-				setNote(displayNote);
-				setCents(displayCents.toFixed(1));
-			} else {
-				// silence or invalid pitch
+			if (volume < 0.01) {
+				// Too quiet — probably silence or background noise
+				setNote(null);
 				setCents('0.0');
-			}
+			} else {
+				const pitch = detectPitch(dataArray, analyser.context.sampleRate);
 
+				if (pitch !== null) {
+					const nearestNote = getNoteFromPitch(pitch);
+					let centsOff = 0;
+
+					if (isStringInstrument(instrument) && selectedString) {
+						const targetNote = getNoteFromPitchName(selectedString);
+						centsOff = getCentsDifference(pitch, targetNote.frequency);
+						if (!note || note !== targetNote.name) {
+							setNote(targetNote.name);
+							lastNote = targetNote.name;
+						}
+					} else {
+						centsOff = getCentsDifference(pitch, nearestNote.frequency);
+						if (!note || note !== nearestNote.name) {
+							setNote(nearestNote.name);
+							lastNote = nearestNote.name;
+						}
+					}
+
+					setCents(centsOff.toFixed(1));
+				}
+			}
 			requestAnimationFrame(detect);
 		};
 
 		detect();
-	}, [analyser, dataArray, instrument, selectedString, isListening]);
+	}, [analyser, dataArray, instrument, selectedString, isListening, note]);
 
 	const toggleMic = async () => {
 		if (isListening) {
 			stopMic();
-			setIsListening(false);
 			setNote(null);
 			setCents('0.0');
+			setIsListening(false);
 		} else {
 			try {
 				await startMic();
@@ -96,8 +114,13 @@ function App() {
 	};
 
 	const instruments = [
-		'Guitar', 'Violin', 'Ukulele',
-		'Tabla', 'Pakhawaj', 'Harmonium', 'Dholki'
+		'Guitar',
+		'Violin',
+		'Ukulele',
+		'Tabla',
+		'Pakhawaj',
+		'Harmonium',
+		'Dholki',
 	];
 
 	return (
@@ -148,7 +171,7 @@ function App() {
 				<div className="needle-wrapper">
 					<div
 						className="needle"
-						style={{ transform: `rotate(${cents}deg)` }}
+						style={{ transform: `rotate(${cents ? cents : 0}deg)` }}
 					></div>
 					<div className="center-line"></div>
 				</div>
