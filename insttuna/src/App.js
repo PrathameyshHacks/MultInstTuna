@@ -56,30 +56,40 @@ function App() {
             analyser.getFloatTimeDomainData(dataArray);
             const volume = getRMS(dataArray);
 
-            if (volume < 0.001) {
+            // Ignore low-volume input (background noise)
+            if (volume < 0.005) {
                 setNote(null);
                 setCents('0.0');
-            } else {
-                const pitch = detectPitch(dataArray, sampleRate);
-
-                if (pitch !== null) {
-                    const nearestNote = getNoteFromPitch(pitch);
-                    let centsOff = 0;
-
-                    if (isStringInstrument(instrument) && selectedString) {
-                        const targetNote = getNoteFromPitchName(selectedString);
-                        centsOff = getCentsDifference(pitch, targetNote.frequency);
-                        setNote(targetNote.name);
-                    } else {
-                        centsOff = getCentsDifference(pitch, nearestNote.frequency);
-                        setNote(nearestNote.name);
-                    }
-
-                    setCents(centsOff.toFixed(1));
-                }
+                requestAnimationFrame(detect);
+                return;
             }
+
+            const pitch = detectPitch(dataArray, sampleRate);
+
+            if (pitch !== null) {
+                const nearestNote = getNoteFromPitch(pitch);
+                let centsOff = 0;
+
+                if (isStringInstrument(instrument) && selectedString) {
+                    const targetNote = getNoteFromPitchName(selectedString);
+                    centsOff = getCentsDifference(pitch, targetNote.frequency);
+                    setNote(targetNote.name);
+                } else {
+                    centsOff = getCentsDifference(pitch, nearestNote.frequency);
+                    setNote(nearestNote.name);
+                }
+
+                // Smooth needle movement
+                const smoothedCents = parseFloat(cents) * 0.7 + centsOff * 0.3;
+                setCents(smoothedCents.toFixed(1));
+            } else {
+                setNote(null);
+                setCents('0.0');
+            }
+
             requestAnimationFrame(detect);
         };
+
 
         detect();
     }, [analyser, dataArray, instrument, selectedString, isListening, sampleRate]);
