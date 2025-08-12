@@ -1,16 +1,15 @@
 /* eslint-disable no-restricted-globals */
 
-// Set a cache name
 const CACHE_NAME = 'app-cache-v1';
-
-// List of files to cache
 const FILES_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
   '/logo192.png',
-  '/logo512.png'
+  '/logo512.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png'
 ];
 
 // Install event: Cache app shell
@@ -36,7 +35,6 @@ self.addEventListener('activate', event => {
             console.log('[ServiceWorker] Removing old cache', key);
             return caches.delete(key);
           }
-          return null;
         })
       )
     )
@@ -47,12 +45,18 @@ self.addEventListener('activate', event => {
 // Fetch event: Serve from cache or fetch from network
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  
+
   event.respondWith(
     caches.match(event.request).then(response => {
       return (
         response ||
-        fetch(event.request).catch(() => {
+        fetch(event.request).then(networkResponse => {
+          // Optionally cache new requests
+          return caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        }).catch(() => {
           // Offline fallback for navigations
           if (event.request.mode === 'navigate') {
             return caches.match('/index.html');
