@@ -13,9 +13,7 @@ root.render(
 );
 
 // ✅ Register the service worker for PWA
-
-registerServiceWorker();
-
+serviceWorkerRegistration.register();
 
 // Optional: performance monitoring
 reportWebVitals();
